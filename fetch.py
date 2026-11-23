@@ -38,7 +38,7 @@ def kaigo_counts(files):
         if u.endswith(".zip"):
             b = next(v for k, v in oc.unzip(b).items() if k.lower().endswith(".csv"))
         df = oc.read_csv(b)
-        c_city = oc.col(df, "市区町村コード")
+        c_city = oc.col(df, "市区町村コード", required=False) or oc.col(df, "市町村コード")
         c_cap = oc.col(df, "定員", required=False)
         c_pn, c_cn = oc.col(df, "都道府県名", required=False), oc.col(df, "市区町村名", required=False)
         for i, cc in enumerate(df[c_city].tolist()):
