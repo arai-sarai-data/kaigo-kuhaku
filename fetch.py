@@ -71,14 +71,34 @@ def population():
                       if any(re.match(r"^75\D", str(c or "").strip()) and "歳" in str(c) for c in r)), None)
         if hdr_i is None:
             continue
-        hdr = [str(c or "").replace("\n", "") for c in rows[hdr_i]]
-        i_code = next(i for i, h in enumerate(hdr) if "コード" in h)
+        # 見出しが複数行に分かれている（年齢の行の下に「団体コード・性別」の行がある）ので、前後の行と合わせて読む
+        lo = max(0, hdr_i - 3)
+        hi = hdr_i + 1
+        while hi < len(rows) and hi < hdr_i + 4 and not re.fullmatch(r"\d{5,6}|-", str((rows[hi] or [""])[0] or "").strip()):
+            hi += 1
+        width = max(len(r) for r in rows[lo:hi])
+        hdr = []
+        for j in range(width):
+            parts = [str(rows[k][j]).replace("\n", "").strip() for k in range(lo, hi)
+                     if j < len(rows[k]) and rows[k][j] is not None]
+            age = [x for x in parts if re.match(r"^\d+\D*歳", x)]
+            hdr.append(age[0] if age else "".join(parts))
+        rows = rows[:hdr_i + 1] + rows[hi:]   # 以降の処理は hdr_i+1 からデータ
+        i_code = next((i for i, h in enumerate(hdr) if "コード" in h), None)
+        if i_code is None:
+            body = rows[hdr_i + 1:hdr_i + 200]
+            score = [sum(1 for r in body if j < len(r) and re.fullmatch(r"\d{5,6}", str(r[j] or "").strip())) for j in range(width)]
+            oc.check(max(score) > 100, "団体コードの列が見つかりません: %s" % hdr[:12])
+            i_code = score.index(max(score))
         i_sex = next((i for i, h in enumerate(hdr) if "性別" in h), None)
         def ages(start):
             return [i for i, h in enumerate(hdr) if "歳" in h and re.match(r"^(\d+)\D", h)
                     and int(re.match(r"^(\d+)", h).group(1)) >= start]
         a75, a65 = ages(75), ages(65)
         i_tot = next((i for i, h in enumerate(hdr) if h in ("総数", "計", "合計")), None)
+        if i_tot is None:  # 年齢の列のすぐ左が総数（見出しは「人」だけ）
+            first_age = min(i for i, h in enumerate(hdr) if re.match(r"^\d+\D*歳", h))
+            i_tot = first_age - 1 if first_age > i_code + 1 else None
         i_pn = next((i for i, h in enumerate(hdr) if "都道府県" in h), None)
         i_cn = next((i for i, h in enumerate(hdr) if "市区町村" in h and "コード" not in h), None)
         oc.check(a75 and a65, "年齢階級の列を読み取れません")
